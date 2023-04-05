@@ -108,8 +108,21 @@ perform_analysis <- function(df,nlme=F,startvec=NULL){
   
   prediction <- as.data.frame(x=t) %>%
     mutate(y=func(t,a,b,lambda),
-           yup=func(t,a1,b1,lambda1),
-           ydown=func(t,a2,b2,lambda2))
+           y100=func(t,a1,b,lambda),
+           y010=func(t,a,b1,lambda),
+           y001=func(t,a,b,lambda1),
+           y110=func(t,a1,b1,lambda),
+           y101=func(t,a1,b,lambda1),
+           y111=func(t,a1,b1,lambda1),
+           y200=func(t,a2,b,lambda),
+           y020=func(t,a,b2,lambda),
+           y002=func(t,a,b,lambda2),
+           y220=func(t,a2,b2,lambda),
+           y202=func(t,a2,b,lambda2),
+           y222=func(t,a2,b2,lambda2),
+           yup=pmax(y100,y010,y001,y110,y101,y111,y200,y020,y002,y220,y202,y222,na.rm=T),
+           ydown=pmin(y100,y010,y001,y110,y101,y111,y200,y020,y002,y220,y202,y222,na.rm=T)
+    )
   
   return (list(
     model=model,
@@ -142,8 +155,6 @@ args = commandArgs(trailingOnly=TRUE)
 m_save = as.character(args[1])
 m_filter = as.character(args[2])
 
-print (m_filter)
-print (m_save)
 
 if(is.na(m_filter)){
   m_save <- 'FULL'
@@ -151,6 +162,10 @@ if(is.na(m_filter)){
 }
 
 print (m_save)
+print (m_filter)
+
+#m_filter <- 'n_risks>2'
+#m_save <- '3plusRISK'
 
 
 concepts <- c("37003436"="Pf",
