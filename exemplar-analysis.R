@@ -588,7 +588,9 @@ df <- df_ana %>% filter(dose>0 & !is.na(value_as_number)
                           #drug_concept_name=='Az' & #|drug_concept_name=='Md') & 
                           & !(dose==1 & days_since_vaccine>80)
                         ) %>% 
-  mutate(n_risks = as.factor(ifelse(n_risks>4,'5+',n_risks)),
+  mutate(
+         n_risks = as.factor(ifelse(n_risks>4,'5+',n_risks)),
+         #n_risks = as.factor(ifelse(n_risks>1,'2+',n_risks)),
          drug_concept_nameG = as.factor(drug_concept_name),
          sexG = as.factor(gender_concept_id),
          doseG = as.factor(case_when( dose < 3 ~ as.character(dose),
@@ -610,29 +612,26 @@ grp_name <- c(
   'dose_history'='Dose History',
   'dose_history2'='Prior Dose History'
 )
-term_name <- c(
-  'a'='Initial IgG',
-  'b'='IgG Rise',
-  'lambda'='Waning Effect'
-)
+
 
 
 fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
   nlmer(
     value_as_number ~ func(days_since_vaccine, a, b, lambda) ~ 
       #+ (lambda|sexG)
-      #+ (a|dose)
+      + (a|dose)
       + (a|dose_history2)
       #+ (b|dose)
-      + (a | ageG)
-      + (b |ageG) 
-    + (a|n_risks)
-    + (b|n_risks)
+      #+ (a | ageG)
+      #+ (b |ageG) 
+  #  + (a|n_risks)
+    #+ (b|n_risks)
     #+ (lambda|n_risks)
     #+ (a|Q_DIAG_DIABETES_2)
     #+ (a|Q_DIAG_CKD3)
     #+ (a|drug_concept_name)
     + (b|drug_concept_name)
+    + (lambda|ageG)
     + (lambda|drug_concept_name) 
     #+ (b|drug_concept_name)
     #value_as_number ~ func(days_since_vaccine, a, b, lambda) ~ (lambda|ageG) + (a|ageG) + (b|ageG)
@@ -648,15 +647,22 @@ fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
 
 
 
-results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
-#results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
+#results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
+results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
 prediction <- results$prediction
 data <- results$data
 model <- results$model
 summary(model)
 
 res <- get_nlmer_results(model,modify=T)
-resul
+
+term_name <- c(
+  'a'='\u03B1',
+  'b'='\u03B2',
+  'lambda'='\u03BB'
+)
+
+results <- res$results
 intercepts <- res$intercepts
 
 
@@ -668,6 +674,8 @@ results <- results %>% mutate(group = factor(grp_name[group],levels=grp_name),
                                 TRUE ~ level
                               ),
                               term= factor(term_name[term],levels=term_name))
+
+
 intercepts <- intercepts %>% mutate(term=factor(term_name[term],levels=term_name))
 
 
@@ -678,7 +686,7 @@ results <- results %>% filter(!grepl('NA',level))
 p <- plot_nlmer_results(results,intercepts) 
 p
 
-pdf('nlme_pc_v3.pdf',width=10,height=7)
+pdf('nlme_pc_v4.pdf',width=10,height=7)
 print (p)
 dev.off()
 
