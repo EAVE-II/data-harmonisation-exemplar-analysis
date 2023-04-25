@@ -43,9 +43,9 @@ fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
     + (a|dose_history2)
     #+ (b|dose)
     + (a | ageG)
-    #+ (b |ageG) 
-    #+ (a|n_risks)
-    #+ (b|n_risks)
+    + (b |ageG) 
+    + (a|n_risks)
+    + (b|n_risks)
     #+ (lambda|n_risks)
     #+ (a|Q_DIAG_DIABETES_2)
     #+ (a|Q_DIAG_CKD3)
@@ -66,9 +66,10 @@ fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
 }
 
 
+#df2 <- df
 
-#results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
-results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
+results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
+#results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
 prediction <- results$prediction
 data <- results$data
 model <- results$model
@@ -114,8 +115,8 @@ intercepts[intercepts$term=='λ',] <- intercepts[intercepts$term=='λ',] %>%
 p <- plot_nlmer_results(results,intercepts) 
 p
 
-ggsave("nlme_bd_v3.pdf", p, width=8, height=6,device=cairo_pdf)
-#ggsave("nlme_pc_v3.pdf", p, width=8, height=6,device=cairo_pdf)
+#ggsave("nlme_bd_v3.pdf", p, width=8, height=6,device=cairo_pdf)
+ggsave("nlme_pc_v3.pdf", p, width=8, height=6,device=cairo_pdf)
 
 
 res_rand <-  broom.mixed::tidy(model, effects = "ran_vals", conf.int = TRUE) %>%
@@ -143,7 +144,7 @@ t3_p1 <- t3 %>%
             mutate_at(c('α','β','λ'),~ifelse(is.na(.),'-',.))
 
 
-write.csv(t3_p1,'table3_bd.csv')
+write.csv(t3_p1,'table3_pc.csv')
 
 
 
