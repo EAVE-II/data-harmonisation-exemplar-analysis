@@ -6,6 +6,8 @@ library(phsstyles)
 library(broom.mixed)
 library(ggtext)
 library(mgcv)
+#library(investr)
+library(nlraa)
 
 getwd()
 
@@ -27,6 +29,10 @@ get_data <- function(df){
 
 perform_analysis <- function(df,nlme=F,startvec=NULL,lower=c(a=0,b=0,lambda=0)){
   
+  #df <- df_ana_1_az
+  #startvec <- NULL
+  #lower <- c(a=0,b=0,lambda=0)
+  
   data <- get_data(df) 
   
   if(is.null(startvec)){
@@ -37,7 +43,7 @@ perform_analysis <- function(df,nlme=F,startvec=NULL,lower=c(a=0,b=0,lambda=0)){
   m0 <- tryCatch({
     
     if(nrow(df)<10){
-      throw('not enough data')
+      stop('not enough data')
     }
     
     nls(value_as_number ~ func(days_since_vaccine,a,b,lambda),
@@ -111,14 +117,26 @@ perform_analysis <- function(df,nlme=F,startvec=NULL,lower=c(a=0,b=0,lambda=0)){
     a1 <- fixed_estimates$conf.high[[1]]
     b1 <- fixed_estimates$conf.high[[2]]
     lambda1 <- fixed_estimates$conf.high[[3]]
+    
+    
+    
   }
   
   
   t <- seq(0,250,0.1)
   
+  if(!is.null(m0) & !nlme){
+    new.data <- data.frame(days_since_vaccine=t)
+    prediction <- as_tibble(nlraa::predict_nls(m0, 
+                                  newdata = new.data, 
+                                  interval = "conf")) %>%
+                  cbind(new.data) %>% as_tibble 
+    colnames(prediction) <- c('y','err','ydown','yup','t')
+  }
+  else{  
   
-  prediction <- as.data.frame(x=t) %>%
-    mutate(y=func(t,a,b,lambda),
+    prediction <- as.data.frame(x=t) %>%
+      mutate(y=func(t,a,b,lambda),
            y100=func(t,a1,b,lambda),
            y010=func(t,a,b1,lambda),
            y001=func(t,a,b,lambda1),
@@ -134,6 +152,7 @@ perform_analysis <- function(df,nlme=F,startvec=NULL,lower=c(a=0,b=0,lambda=0)){
            yup=pmax(y100,y010,y001,y110,y101,y111,y200,y020,y002,y220,y202,y222,na.rm=T),
            ydown=pmin(y100,y010,y001,y110,y101,y111,y200,y020,y002,y220,y202,y222,na.rm=T)
     ) %>% select(t,y,yup,ydown)
+  }
   
   return (list(
     model=model,
@@ -201,9 +220,6 @@ plot_nlmer_results <- function(results,intercepts=NULL){
 
 
 
-
-
-
 # Data Setup ----
 
 
@@ -227,6 +243,9 @@ m_filter = as.character(args[2])
 
 #m_filter <- 'n_risks>2'
 #m_save <- '3plusRISK'
+
+#m_filter <- 'n_risks==0'
+#m_save <- '0RISK'
 
 
 if(is.na(m_filter)){
@@ -406,7 +425,9 @@ df_ana_1_md <- df_ana %>% filter(dose==1 & !is.na(value_as_number) & drug_concep
                                    days_since_vaccine<70) 
 nrow(df_ana_1_md)
 
-results_1_md <- perform_analysis(df_ana_1_md,startvec=c(a=0,b=1000,lambda=0.01))
+#results_1_md <- perform_analysis(df_ana_1_md,startvec=c(a=0,b=1000,lambda=0.01))
+results_1_md <- perform_analysis(df_ana_1_md,startvec=c(a=0,b=1,lambda=1))
+
 
 prediction <- results_1_md$prediction
 data <- results_1_md$data
@@ -418,8 +439,8 @@ p <- prediction %>% ggplot(aes(x=t,y=y,ymax=yup,ymin=ydown)) +
   theme_classic(base_size=25) +
   labs(title='Vaccine = 1st dose Moderna',
        x='Days since vaccination',
-       y='Mean IgG titre [U/ml]') +
-  ylim(c(0,2400))
+       y='Mean IgG titre [U/ml]') #+
+  #ylim(c(-200,2400))
 
 results_1_md$p <- p
 results_1_md$p
@@ -433,7 +454,7 @@ results[['1st Dose Moderna']] <- results_1_md
 df_ana_2_az <- df_ana %>% filter(dose==2 & !is.na(value_as_number) & drug_concept_name=='Az' & 
                                 days_since_vaccine<140) 
 
-results_2_az <- perform_analysis(df_ana_2_az,startvec=c(a=600,b=100,lambda=0.04))
+results_2_az <- perform_analysis(df_ana_2_az)#,startvec=c(a=600,b=100,lambda=0.04))
 prediction <- results_2_az$prediction
 data <- results_2_az$data
 
@@ -454,7 +475,7 @@ results[['2nd Dose AstraZeneca']] <- results_2_az
 
 ### Pf ----
 
-df_ana_2_pf <- df_ana %>% filter(dose==2 & !is.na(value_as_number) & drug_concept_name=='Pf') 
+df_ana_2_pf <- df_ana %>% filter(dose==2 & days_since_vaccine<230 &  !is.na(value_as_number) & drug_concept_name=='Pf') 
 nrow(df_ana_2_pf)
 
 results_2_pf <- perform_analysis(df_ana_2_pf)
@@ -481,10 +502,11 @@ results[['2nd Dose Pfizer']] <- results_2_pf
 ### Md ----
 
 df_ana_2_md <- df_ana %>% filter(dose==2 & !is.na(value_as_number) & drug_concept_name=='Md') %>%
-                                   filter(value_as_number<2000 | days_since_vaccine<120)
+                                   filter(value_as_number<8 | days_since_vaccine<120)
 nrow(df_ana_2_md)
 results_2_md <- perform_analysis(df_ana_2_md,
-                                 startvec=c(a=100,b=3000,lambda=1),
+                                 #startvec=c(a=100,b=3000,lambda=1),
+                                 startvec=c(a=1,b=8,lambda=1),
                                  lower=c(a=0,b=-Inf,lambda=-Inf))
 
 prediction <- results_2_md$prediction
@@ -572,175 +594,4 @@ results[['meta']]
 fname <- paste0(getwd(),"/results/",m_save,".rds")
 print (fname)
 saveRDS(results, file = fname)
-
-
-# NLME ----
-
-
-f2 <- ~ A + a*exp(-0.5*(log(days_since_vaccine) - b)^2/(lambda^2))
-func2 <- deriv(f2,
-               namevec=c("A","a","b","lambda"),
-               function.arg=c("days_since_vaccine","A","a","b","lambda"))
-
-
-df <- df_ana %>% filter(dose>0 & !is.na(value_as_number)  
-                          & days_since_vaccine < 170 
-                          #drug_concept_name=='Az' & #|drug_concept_name=='Md') & 
-                          & !(dose==1 & days_since_vaccine>80)
-                        ) %>% 
-  mutate(
-         n_risks = as.factor(ifelse(n_risks>4,'5+',n_risks)),
-         #n_risks = as.factor(ifelse(n_risks>1,'2+',n_risks)),
-         drug_concept_nameG = as.factor(drug_concept_name),
-         sexG = as.factor(gender_concept_id),
-         doseG = as.factor(case_when( dose < 3 ~ as.character(dose),
-                                      TRUE ~ '3+')),
-         doseProductG = as.factor(
-           paste0(dose,' - ',drug_concept_name)
-         )
-  ) 
-
-
-df %>% colnames
-
-
-grp_name <- c(
-  'ageG'='Age',
-  'n_risks'='Number of Risk Groups',
-  'dose'='Dose',
-  'drug_concept_name'='Vaccine Product',
-  'dose_history'='Dose History',
-  'dose_history2'='Prior Dose History'
-)
-
-
-
-fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
-  nlmer(
-    value_as_number ~ func(days_since_vaccine, a, b, lambda) ~ 
-      #+ (lambda|sexG)
-      + (a|dose)
-      + (a|dose_history2)
-      #+ (b|dose)
-      #+ (a | ageG)
-      #+ (b |ageG) 
-  #  + (a|n_risks)
-    #+ (b|n_risks)
-    #+ (lambda|n_risks)
-    #+ (a|Q_DIAG_DIABETES_2)
-    #+ (a|Q_DIAG_CKD3)
-    #+ (a|drug_concept_name)
-    + (b|drug_concept_name)
-    + (lambda|ageG)
-    + (lambda|drug_concept_name) 
-    #+ (b|drug_concept_name)
-    #value_as_number ~ func(days_since_vaccine, a, b, lambda) ~ (lambda|ageG) + (a|ageG) + (b|ageG)
-    #+ (a|drug_concept_name) + (b|drug_concept_name) + (lambda|drug_concept_name)
-    #+ (lambda|gender_concept_id) + (a|gender_concept_id) 
-    #+ (a|days_between_vaccinesG) 
-    ,
-    start=startvec,
-    verbose=1,
-    control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=10000)),
-    data=df)
-}
-
-
-
-#results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
-results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
-prediction <- results$prediction
-data <- results$data
-model <- results$model
-summary(model)
-
-res <- get_nlmer_results(model,modify=T)
-
-term_name <- c(
-  'a'='\u03B1',
-  'b'='\u03B2',
-  'lambda'='\u03BB'
-)
-
-results <- res$results
-intercepts <- res$intercepts
-
-
-results <- results %>% mutate(group = factor(grp_name[group],levels=grp_name),
-                              level = case_when(
-                                #level=='Pf' ~ 'Pfizer',
-                                #level=='Az' ~ 'AstraZeneca',
-                                #level=='Md' ~ 'Moderna',
-                                TRUE ~ level
-                              ),
-                              term= factor(term_name[term],levels=term_name))
-
-
-intercepts <- intercepts %>% mutate(term=factor(term_name[term],levels=term_name))
-
-
-results <- results %>% filter(!grepl('NA',level))
-
-
-
-p <- plot_nlmer_results(results,intercepts) 
-p
-
-pdf('nlme_pc_v4.pdf',width=10,height=7)
-print (p)
-dev.off()
-
-
-
-
-
-
-png('nlme_pc.png',width=800,height=500)
-print (p)
-dev.off()
-
-
-p <- prediction %>% ggplot(aes(x=t,y=y,ymax=yup,ymin=ydown)) +
-  geom_ribbon(fill='purple',alpha=0.2) +# scale_fill_continuous_phs(palette='main') + 
-  geom_line(linetype='dashed') + 
-  geom_pointrange(aes(x=days_since_vaccineG10,y=igg,ymin=igg-err,ymax=igg+err),data=data) +
-  theme_classic(base_size=25) +
-  labs(title='Vaccine = 2nd dose Pfizer',
-       x='Days since vaccination',
-       y='Mean IgG titre [U/ml]')
-p
-
-
-
-
-prediction
-model
-data
-
-
-results_2_pf <- perform_analysis(df)#,nlme=F,startvec=c(a=800,b=30,lambda=4))
-prediction_nls <- results_2_pf$prediction
-prediction_nls
-
-prediction_both <- prediction %>% mutate(type='NLME') %>%
-  rbind(
-    prediction_nls %>% mutate(type='NLS')
-  )
-
-p <- prediction_both %>% ggplot(aes(x=t,y=y,ymax=yup,ymin=ydown)) +
-  geom_ribbon(aes(fill=as.factor(type)),alpha=0.2) +# scale_fill_continuous_phs(palette='main') + 
-  geom_line(aes(fill=as.factor(type)),linetype='dashed') + 
-  geom_pointrange(aes(x=days_since_vaccineG10,y=igg,ymin=igg-err,ymax=igg+err),data=data) +
-  theme_classic(base_size=25) +
-  labs(title='Vaccine = 2nd dose Pfizer',
-       x='Days since vaccination',
-       y='Mean IgG titre [U/ml]')
-p
-
-
-results_2_pf$p <- p
-results_2_pf$p
-
-
-
 
