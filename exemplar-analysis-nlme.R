@@ -43,9 +43,9 @@ fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
     + (a|dose_history2)
     #+ (b|dose)
     + (a | ageG)
-    + (b |ageG) 
-      + (a|n_risks)
-    + (b|n_risks)
+    #+ (b |ageG) 
+    #+ (a|n_risks)
+    #+ (b|n_risks)
     #+ (lambda|n_risks)
     #+ (a|Q_DIAG_DIABETES_2)
     #+ (a|Q_DIAG_CKD3)
@@ -67,8 +67,8 @@ fit_nlmer <- function(df,startvec=c(a=1,b=1,lambda=1)){
 
 
 
-results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
-#results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
+#results <- perform_analysis(df,nlme=T,startvec=c(a=800,b=50,lambda=3))
+results <- perform_analysis(df,nlme=T,startvec=c(a=4,b=2,lambda=2))
 prediction <- results$prediction
 data <- results$data
 model <- results$model
@@ -102,15 +102,48 @@ intercepts <- intercepts %>% mutate(term=factor(term_name[term],levels=term_name
 results <- results %>% filter(!grepl('NA',level))
 
 
+results[results$term=='λ',] <- results[results$term=='λ',] %>% 
+                   mutate_at(c('estimate','conf.low','conf.high'),~0.01*(.))
+
+intercepts[intercepts$term=='λ',] <- intercepts[intercepts$term=='λ',] %>% 
+  mutate_at(c('estimate','conf.low','conf.high'),~0.01*(.))
+
+
+
 
 p <- plot_nlmer_results(results,intercepts) 
 p
 
-pdf('nlme_pc_v4.pdf',width=10,height=7)
-print (p)
-dev.off()
+ggsave("nlme_bd_v3.pdf", p, width=8, height=6,device=cairo_pdf)
+#ggsave("nlme_pc_v3.pdf", p, width=8, height=6,device=cairo_pdf)
 
 
+res_rand <-  broom.mixed::tidy(model, effects = "ran_vals", conf.int = TRUE) %>%
+  mutate(
+    term= factor(term_name[term],levels=term_name),
+    group = factor(grp_name[group],levels=grp_name) ) %>% 
+  select(-effect)
+  
+res_fixed <- broom.mixed::tidy(model, effects = "fixed", conf.int = TRUE) %>%
+  mutate(
+    level='',
+    term= factor(term_name[term],levels=term_name)) %>%
+  select(-statistic) %>%
+  rename(group=effect)
+
+t3 <- res_rand %>% rbind(res_fixed)
+
+t3_p1 <- t3 %>% 
+             mutate(cell=paste0(sprintf('%.1f',estimate),
+                                " (",sprintf('%.1f',conf.high),
+                                " - ",sprintf('%.1f',conf.low),")")) %>%
+            select(-estimate,-conf.low,-conf.high,-std.error) %>%
+            pivot_wider(id_cols=c('group','level'),values_from=c('cell'),
+                        names_from=c('term')) %>% 
+            mutate_at(c('α','β','λ'),~ifelse(is.na(.),'-',.))
+
+
+write.csv(t3_p1,'table3_bd.csv')
 
 
 

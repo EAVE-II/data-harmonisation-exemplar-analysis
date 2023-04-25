@@ -292,7 +292,7 @@ df_drug_exposure <- df_drug_exposure %>% group_by(person_id) %>%
                       ) %>% ungroup 
 
 
-df_measurement <- read.csv("data/measurement2.csv")
+df_measurement <- read.csv("data/measurement.csv")
 df_measurement <- df_measurement %>% select(measurement_id,person_id,measurement_date,value_as_number) %>% 
                    mutate_at(c('measurement_date'),as.Date)
 
