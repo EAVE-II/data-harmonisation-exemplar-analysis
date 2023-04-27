@@ -229,6 +229,7 @@ plot_nlmer_results <- function(results,intercepts=NULL){
 #m_filter <- 'n_risks == 1'
 #m_save <- '1RISK'
 
+
 #m_filter <- paste0(ordered_conditions[9],'==1')
 
 
@@ -246,6 +247,12 @@ m_filter = as.character(args[2])
 
 #m_filter <- 'n_risks==0'
 #m_save <- '0RISK'
+
+
+
+#m_filter <- 'age >=40 & age<50'
+#m_save <- 'age40_50'
+
 
 
 if(is.na(m_filter)){

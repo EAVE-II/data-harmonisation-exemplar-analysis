@@ -25,6 +25,30 @@ jobs <- lapply(ordered_conditions, function(cname) {
 })
 
 
+for(i in seq(0,101,10)){
+  filter <- paste0('"age >= ',i,' & age< ',i+10,'"')
+  #filter <- paste0('age == ',i)
+  cname <- paste0('AGE',i,'_',i+10)
+  
+  print (filter)
+  print (cname)
+  
+  launcherSubmitJob(
+    cname,
+    cluster = "Kubernetes",
+    tags = c('EAVE-II','Serology'),
+    environment = c(R_LIBS_USER='/mnt/homes/calumm09/R/x86_64-pc-linux-gnu-library/4.1'),
+    command = '/opt/R/4.1.2/lib/R/bin/R',
+    args =  c("--slave", "--no-save", "--no-restore", 
+              paste("-f", paste0(getwd(),"/exemplar-analysis.R")),
+              paste("--args",cname,filter)),
+    workingDirectory = getwd(),
+  )
+  
+  
+}
+
+
 filter <- 'n_risks==0'
 cname <- '0RISK'
 launcherSubmitJob(
